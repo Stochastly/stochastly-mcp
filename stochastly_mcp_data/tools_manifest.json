@@ -230,7 +230,7 @@
         "properties": {
           "plan": {
             "additionalProperties": true,
-            "description": "Strategy graph. Keys: strategy {key, params, code}, filters [{key, params, code, mode}], gates [{key, threshold, params, op, window}], lectures [{key, params}], execution {..}, data {is_pct, oos1_pct, purge_bars, embargo_bars, wfa_is_len, wfa_oos_len}, cost, cost_nodes [{name, params}], propfirm, propfirm_ev. Node keys are \"family/name\" from node_catalog.",
+            "description": "Strategy graph. Keys: strategy {key, params, code}, filters [{key, params, code, mode}], gates [{key, threshold, params, op, window}], lectures [{key, params}], execution {..}, data {is_pct, oos1_pct, purge_bars, embargo_bars, wfa_is_len, wfa_oos_len}, cost, cost_nodes [{name, params}], propfirm, propfirm_ev. Node keys are \"family/name\" from node_catalog; a cost node takes its name or its cost/<name> key.",
             "title": "Plan",
             "type": "object"
           },
@@ -567,7 +567,7 @@
     },
     {
       "name": "node_catalog",
-      "description": "Return the graph editor's node catalogue, grouped by family: every strategy, filter, gate,\ncost and reading node with its parameter schema, plus an `exportable` flag on strategies.\n\nThis is the only source of valid node keys (\"family/name\") for compose_graph and\nbacktest_graph; call it before writing a plan. Needs Stochastly open with an Atelier or\nPortfolio licence.",
+      "description": "Return the graph editor's node catalogue. Without `family`: an index with one line per\nnode, `family/name [status](parameter names)`, grouped by list, plus counts and timeframes.\nWith `family`: the full schema of that family's nodes (values, defaults, symbol limits,\nnotes, an `exportable` flag on strategies).\n\nThis is the only source of valid node keys (\"family/name\") for compose_graph and\nbacktest_graph; call it before writing a plan, then once per family you use. The index note\nsays which status cannot be placed. Needs Stochastly open with an Atelier or Portfolio licence.",
       "inputSchema": {
         "properties": {
           "force": {
@@ -575,6 +575,19 @@
             "description": "True reloads the catalogue from the engine instead of the in-memory copy; only needed after the engine was updated while the app was open.",
             "title": "Force",
             "type": "boolean"
+          },
+          "family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "A list or family name from the index (for example \"strategies\", \"filter\", \"cost\", \"ml\"); returns that family's full parameter schemas. Omit for the index of every node.",
+            "title": "Family"
           }
         },
         "title": "node_catalogArguments",
@@ -720,7 +733,7 @@
     },
     {
       "name": "portfolio_combine",
-      "description": "Combine several finished runs into one portfolio (book) and judge it: returns the combined\nseries, the weights actually used, the correlation matrix between sleeves, each sleeve's\ncontribution and a deflated Sharpe ratio. The book is saved as a new run, so\nadversarial_check and export_tearsheet accept its run_id.\n\nUse it for a multi-strategy or multi-market book; a single graph run covers one strategy, and\nanalyze_dependence only measures two curves you supply. Weights at bar t use only bars before\nt, and the drawdown cap acts on the previous bar's equity. Nothing is re-simulated: runs must\nbe finished in the current app session; runs in different PnL units are refused, not\nconverted. Requires a Portfolio licence (Atelier gets a named refusal).",
+      "description": "Combine several finished runs into one portfolio (book) and judge it: returns the numerical\ncorrelation matrix between sleeves, simultaneous-loss days and percentage on common calendar\ndays, the correlation on the worst 5% of portfolio days, each sleeve's contribution, a\ndeflated Sharpe ratio, and the head and tail of the combined series and weights. Stressed\ncorrelation is null if fewer than two selected days or zero variance prevent estimation.\nThe book is saved as a new run, so adversarial_check and export_tearsheet accept its run_id\nand read the full series.\n\nUse it for a multi-strategy or multi-market book; a single graph run covers one strategy, and\nanalyze_dependence only measures two curves you supply. Weights at bar t use only bars before\nt, and the drawdown cap acts on the previous bar's equity. Nothing is re-simulated: runs must\nbe finished in the current app session; runs in different PnL units are refused, not\nconverted. Requires a Portfolio licence (Atelier gets a named refusal).",
       "inputSchema": {
         "properties": {
           "run_ids": {

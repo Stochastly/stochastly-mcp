@@ -16,11 +16,14 @@ import runpy
 import sys
 from typing import Any
 
-PRICING_URL = "https://stochastly.com/pricing"
+__version__ = "0.2.2"
+# 16/10 (0.2.2): /pricing answers 308 to /request-access since the early-access decision; the launcher pointed
+# strangers at a pricing page that no longer exists and called it the place to "install" the app.
+ACCESS_URL = "https://stochastly.com/request-access"
 MANIFEST = Path(__file__).resolve().parent / "stochastly_mcp_data" / "tools_manifest.json"
 FALLBACK_NOTE = (
     "Requires the Stochastly desktop app: this tool runs inside the app, which is not installed on "
-    "this machine. Install it from " + PRICING_URL + ", open it and activate a licence."
+    "this machine. Request access at " + ACCESS_URL + ", then install and open the app."
 )
 
 
@@ -60,7 +63,7 @@ def editions_label(needed: str) -> str:
 
 
 def refusal(name: str, manifest: dict[str, Any]) -> dict[str, Any]:
-    """The structured answer every tool returns while the desktop app is missing."""
+    """The structured answer every listed tool returns while the desktop app is missing."""
     editions = manifest.get("editions") or {}
     needed = (editions.get("per_tool") or {}).get(name) or editions.get("default") or "atelier or portfolio"
     known = {t.get("name") for t in manifest["tools"]}
@@ -70,10 +73,10 @@ def refusal(name: str, manifest: dict[str, Any]) -> dict[str, Any]:
         "known_tool": name in known,
         "app_installed": False,
         "error": (f"'{name}' requires the Stochastly desktop app, which is not installed on this "
-                  f"machine. Install it from {PRICING_URL}, open it and activate a licence; "
+                  f"machine. Request access at {ACCESS_URL}, then install and open the app; "
                   f"this tool needs the {editions_label(needed)} edition."),
         "needed": needed,
-        "pricing": PRICING_URL,
+        "access": ACCESS_URL,
     }
 
 
@@ -94,7 +97,9 @@ def serve_fallback() -> None:
             "inputSchema": {"type": "object", "properties": {}},
         }]}
     tools = [types.Tool(**t) for t in fallback_tools(manifest)]
-    server = Server("stochastly")
+    known = {t.name for t in tools}
+    # 0.2.2: the version announced to the client is this launcher's, not the MCP SDK's (it said 1.30.0)
+    server = Server("stochastly", version=__version__)
 
     @server.list_tools()
     async def _list_tools() -> list[types.Tool]:
@@ -103,6 +108,10 @@ def serve_fallback() -> None:
     # Input is not validated: whatever the arguments, the honest answer is the same refusal.
     @server.call_tool(validate_input=False)
     async def _call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        # 0.2.2: a name the server does not list is an error, as the app's server says it ("Unknown tool: x"),
+        # not a request for the desktop app
+        if name not in known:
+            raise ValueError(f"Unknown tool: {name}")
         return refusal(name, manifest)
 
     async def _run() -> None:
